@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -73,6 +74,40 @@ func putMiscile(fileReader *bufio.Reader, data chan<- missileInfoDimensions) {
 	}
 	close(data)
 }
+func missileLaunchingFunction(ship [][]byte, target missileInfoDimensions) bool {
+	switch ship[target.x][target.y] {
+	case '_':
+		ship[target.x][target.y] = 'O'
+	case 'B':
+		ship[target.x][target.y] = 'X'
+		return true
+	}
+	return false
+}
+
+func matrixPrint(matrix [][]byte, size int, writer io.Writer) {
+	for i := 0; i < size; i++ {
+		for j := 0; j < size; j++ {
+			fmt.Fprintf(writer, "%c ", matrix[i][j])
+		}
+		fmt.Fprintf(writer, "\n")
+	}
+	fmt.Fprintf(writer, "\n")
+}
+
+func finalResult(p1Count, p2Count int, writer io.Writer) {
+	fmt.Fprintf(writer, "P1:%d\n", p1Count)
+	fmt.Fprintf(writer, "P2:%d\n", p2Count)
+
+	switch {
+	case p1Count > p2Count:
+		fmt.Fprintln(writer, "Player 1 wins")
+	case p1Count < p2Count:
+		fmt.Fprintln(writer, "Player 2 wins")
+	case p1Count == p2Count:
+		fmt.Fprintln(writer, "It is a draw")
+	}
+}
 
 func main() {
 	if len(os.Args) != 3 {
@@ -105,4 +140,22 @@ func main() {
 	player2moves := make(chan missileInfoDimensions)
 	go putMiscile(fileReader, player1moves)
 	go putMiscile(fileReader, player2moves)
+	var player1Hits, player2Hits int
+	for i := 0; i < missilesTotal; i++ {
+		if missileLaunchingFunction(player1ShipMatrix, <-player1moves) {
+			player2Hits++
+		}
+		if missileLaunchingFunction(player2ShipMatrix, <-player2moves) {
+			player1Hits++
+		}
+	}
+	writer := io.MultiWriter(outputFile, os.Stdout)
+
+	fmt.Fprintf(writer, "Player1\n")
+	matrixPrint(player1ShipMatrix, getSize, writer)
+	fmt.Fprintf(writer, "Player2\n")
+	matrixPrint(player2ShipMatrix, getSize, writer)
+
+	finalResult(player1Hits, player2Hits, writer)
+
 }
